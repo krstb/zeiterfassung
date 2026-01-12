@@ -115,7 +115,7 @@
     </div>
 
     <div id="editModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-        <div class="relative top-10 mx-auto p-5 border w-80 max-w-md shadow-lg rounded-2xl bg-white">
+        <div class="relative top-10 mx-auto p-5 border w-80 shadow-lg rounded-2xl bg-white">
             <h3 class="text-lg font-bold text-gray-900 mb-4 text-center">Sitzung bearbeiten</h3>
             <div class="space-y-3">
                 <div>
@@ -344,7 +344,11 @@
             combinedCsv += "\n\n\nZusammenfassung nach Tätigkeit (pro Tag)\nDatum;Thema;Summierte Dauer (HH:mm:ss);Anzahl der Sitzungen\n";
             const sumData = {};
             sessions.forEach(s => { const d = new Date(s.start).toLocaleDateString('de-DE', options); const k = `${d}_${s.topic}`; if(!sumData[k]) sumData[k]={d, t:s.topic, dur:0, c:0}; sumData[k].dur += s.duration; sumData[k].c++; });
-            Object.keys(sumData).sort((a, b) => new Date(b.split('.').reverse().join('-')) - new Date(a.split('.').reverse().join('-'))).forEach(k => { combinedCsv += `${sumData[k].d};${sumData[k].t};${formatTime(sumData[k].dur)};${sumData[k].c}\n`; });
+            
+            // KORREKTUR: Fix der schließenden Klammern beim Sortieren und forEach
+            Object.keys(sumData).sort((a, b) => new Date(b.split('.').reverse().join('-')) - new Date(a.split('.').reverse().join('-'))).forEach(k => { 
+                combinedCsv += `${sumData[k].d};${sumData[k].t};${formatTime(sumData[k].dur)};${sumData[k].c}\n`; 
+            });
             
             combinedCsv += "\n\n\nArbeitszeit / Reisezeit Zusammenfassung (Gesamt)\nTyp;Gesamtdauer (HH:mm:ss);Anzahl der Sitzungen\n";
             let tw=0, cw=0, tr=0, cr=0;
@@ -398,6 +402,8 @@
         saveEditButton.addEventListener('click', saveEditedSession);
         deleteSingleButton.addEventListener('click', () => { if(sessionIndexToEdit!==null){const s=JSON.parse(localStorage.getItem(localStorageKey)); s.splice(sessionIndexToEdit,1); localStorage.setItem(localStorageKey, JSON.stringify(s)); hideModal('editModal'); renderSessions(); renderSummarizedSessions();} });
         cancelEditButton.addEventListener('click', () => hideModal('editModal'));
+
+        // Refresh-Schutz: Speichern der Auswahl und Inputs im LocalStorage
         sessionTopicInput.addEventListener('change', () => { 
             localStorage.setItem(localStorageCurrentSessionTopicKey, sessionTopicInput.value);
             if(isRunning){stopTimer(true); startTimer();} 
@@ -405,6 +411,7 @@
         });
         customTopicInput.addEventListener('input', () => {
             localStorage.setItem(localStorageCurrentCustomTopicKey, customTopicInput.value);
+            if (isRunning) { currentActivityTopic = customTopicInput.value; }
         });
         workTypeTopic.addEventListener('change', () => { 
             localStorage.setItem(localStorageCurrentWorkTypeKey, workTypeTopic.value);
@@ -412,6 +419,7 @@
         });
         
         const initApp = () => {
+            // Arbeitszeit-Typ laden
             const wt = localStorage.getItem(localStorageCurrentWorkTypeKey); 
             if (wt) { 
                 workTypeTopic.value = wt; 
@@ -420,6 +428,7 @@
                 currentWorkTypeTopic = workTypeTopic.value;
             }
 
+            // Tätigkeit-Thema laden
             const st = localStorage.getItem(localStorageCurrentSessionTopicKey);
             if (st) { 
                 sessionTopicInput.value = st; 
@@ -431,8 +440,11 @@
                 } else {
                     currentActivityTopic = st; 
                 }
+            } else {
+                currentActivityTopic = sessionTopicInput.value;
             }
 
+            // Laufende Timer wiederherstellen
             const sStart = localStorage.getItem(localStorageStartTimeKey);
             if (sStart) { 
                 startTime = parseInt(sStart, 10); isRunning = true; 
@@ -452,5 +464,4 @@
         initApp();
     </script>
 </body>
-
 </html>
