@@ -522,7 +522,15 @@
         deleteSingleButton.addEventListener('click', deleteSingleSession);
         cancelEditButton.addEventListener('click', () => hideModal('editModal'));
         sessionTopicInput.addEventListener('change', handleActivityTopicChange);
-        customTopicInput.addEventListener('input', updateActivityStatus);
+        
+        // KORREKTUR: Synchronisiert den Text des Custom-Inputs live mit der internen Variable
+        customTopicInput.addEventListener('input', () => {
+            updateActivityStatus();
+            if (isRunning && sessionTopicInput.value === 'Andere') {
+                currentActivityTopic = customTopicInput.value.trim() || 'Kein Thema';
+            }
+        });
+
         workTypeTopic.addEventListener('change', handleWorkTypeTopicChange);
         editTopicInput.addEventListener('change', () => { editCustomTopicInput.classList.toggle('hidden', editTopicInput.value !== 'Andere'); if (editTopicInput.value === 'Andere') editCustomTopicInput.focus(); });
 
@@ -553,8 +561,4 @@
         initApp();
     </script>
 </body>
-
 </html>
-
-
-
