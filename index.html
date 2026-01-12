@@ -175,6 +175,10 @@
         const localStorageKey = 'homeOfficeSessions';
         const localStorageStartTimeKey = 'homeOfficeStartTime';
         const localStorageWorkTimeStartTimeKey = 'homeOfficeWorkTimeStartTimeKey';
+        // NEUE KEYS FÜR REFRESH-SICHERHEIT
+        const localStorageCurrentWorkTypeKey = 'homeOfficeCurrentWorkType';
+        const localStorageCurrentSessionTopicKey = 'homeOfficeCurrentSessionTopic';
+        const localStorageCurrentCustomTopicKey = 'homeOfficeCurrentCustomTopic';
         
         let timerInterval, isRunning = false, startTime = null, currentActivityTopic = null;
         let workTimeTimerInterval, isWorkTimeRunning = false, workTimeStartTime = null, currentWorkTypeTopic = null;
@@ -217,10 +221,10 @@
         const startTimer = () => {
             if (isRunning) return;
 
-            // KORREKTUR: Sicherstellen, dass "Arbeitszeit" ausgewählt ist
             if (workTypeTopic.value !== 'Arbeitszeit') {
-                if (isWorkTimeRunning) stopWorkTimeTimer(); // Stoppt Reisezeit, falls sie gerade aktiv ist
-                workTypeTopic.value = 'Arbeitszeit'; // Setzt das Dropdown auf Arbeitszeit
+                if (isWorkTimeRunning) stopWorkTimeTimer();
+                workTypeTopic.value = 'Arbeitszeit';
+                localStorage.setItem(localStorageCurrentWorkTypeKey, 'Arbeitszeit');
             }
 
             if (!isWorkTimeRunning) startWorkTimeTimer();
@@ -230,7 +234,11 @@
             const selectedTopic = sessionTopicInput.value;
             const customTopic = customTopicInput.value.trim();
             currentActivityTopic = selectedTopic === 'Andere' ? (customTopic || 'Kein Thema') : (selectedTopic || 'Kein Thema');
+            
             localStorage.setItem(localStorageStartTimeKey, startTime);
+            localStorage.setItem(localStorageCurrentSessionTopicKey, selectedTopic);
+            localStorage.setItem(localStorageCurrentCustomTopicKey, customTopic);
+
             updateActivityStatus();
             startButton.disabled = true;
             stopButton.disabled = false;
@@ -247,6 +255,9 @@
             clearInterval(timerInterval);
             startTime = null;
             localStorage.removeItem(localStorageStartTimeKey);
+            localStorage.removeItem(localStorageCurrentSessionTopicKey);
+            localStorage.removeItem(localStorageCurrentCustomTopicKey);
+
             if (!isAutoRestart) {
                 timerDisplay.textContent = '00:00:00';
                 startButton.disabled = false;
@@ -276,7 +287,10 @@
             isWorkTimeRunning = true;
             workTimeStartTime = Date.now();
             currentWorkTypeTopic = workTypeTopic.value;
+            
             localStorage.setItem(localStorageWorkTimeStartTimeKey, workTimeStartTime);
+            localStorage.setItem(localStorageCurrentWorkTypeKey, currentWorkTypeTopic);
+
             workTimeTimerInterval = setInterval(updateWorkTimeTimer, 1000);
             workTimeStartButton.disabled = true;
             workTimeStopButton.disabled = false;
@@ -285,8 +299,6 @@
 
         const stopWorkTimeTimer = () => {
             if (!isWorkTimeRunning) return;
-            
-            // Laufende Tätigkeit stoppen, wenn die Arbeitszeit gewechselt/gestoppt wird
             if (isRunning) stopTimer();
 
             const endTime = Date.now();
@@ -296,6 +308,8 @@
             isWorkTimeRunning = false;
             clearInterval(workTimeTimerInterval);
             localStorage.removeItem(localStorageWorkTimeStartTimeKey);
+            localStorage.removeItem(localStorageCurrentWorkTypeKey);
+
             workTimeTimerDisplay.textContent = '00:00:00';
             workTimeStartButton.disabled = false;
             workTimeStopButton.disabled = true;
@@ -511,14 +525,22 @@
 
         const handleActivityTopicChange = () => {
             if (isRunning) { stopTimer(true); startTimer(); } 
-            else { updateActivityStatus(); }
+            else { 
+                updateActivityStatus(); 
+                // Speichere Auswahl auch ohne laufenden Timer
+                localStorage.setItem(localStorageCurrentSessionTopicKey, sessionTopicInput.value);
+            }
             customTopicInput.classList.toggle('hidden', sessionTopicInput.value !== 'Andere');
             if (sessionTopicInput.value === 'Andere') customTopicInput.focus();
         };
 
         const handleWorkTypeTopicChange = () => {
             if (isWorkTimeRunning) { stopWorkTimeTimer(); startWorkTimeTimer(); } 
-            else { updateWorkTimeStatus(); }
+            else { 
+                updateWorkTimeStatus();
+                // Speichere Auswahl auch ohne laufenden Timer
+                localStorage.setItem(localStorageCurrentWorkTypeKey, workTypeTopic.value);
+            }
         };
 
         // --- Event Listeners ---
@@ -536,12 +558,13 @@
         cancelEditButton.addEventListener('click', () => hideModal('editModal'));
         sessionTopicInput.addEventListener('change', handleActivityTopicChange);
         
-        // KORREKTUR: Synchronisiert den Text des Custom-Inputs live mit der internen Variable
         customTopicInput.addEventListener('input', () => {
             updateActivityStatus();
+            const val = customTopicInput.value.trim();
             if (isRunning && sessionTopicInput.value === 'Andere') {
-                currentActivityTopic = customTopicInput.value.trim() || 'Kein Thema';
+                currentActivityTopic = val || 'Kein Thema';
             }
+            localStorage.setItem(localStorageCurrentCustomTopicKey, val);
         });
 
         workTypeTopic.addEventListener('change', handleWorkTypeTopicChange);
@@ -549,10 +572,28 @@
 
         // --- App Initialization ---
         const initApp = () => {
+            // REFRESH-SICHERHEIT: Wiederherstellen der Dropdown-Werte
+            const savedWorkType = localStorage.getItem(localStorageCurrentWorkTypeKey);
+            if (savedWorkType) workTypeTopic.value = savedWorkType;
+
+            const savedSessionTopic = localStorage.getItem(localStorageCurrentSessionTopicKey);
+            if (savedSessionTopic) {
+                sessionTopicInput.value = savedSessionTopic;
+                if (savedSessionTopic === 'Andere') {
+                    customTopicInput.classList.remove('hidden');
+                    customTopicInput.value = localStorage.getItem(localStorageCurrentCustomTopicKey) || '';
+                }
+            }
+
             const storedStartTime = localStorage.getItem(localStorageStartTimeKey);
             if (storedStartTime) {
                 startTime = parseInt(storedStartTime, 10);
                 isRunning = true;
+                
+                const selectedTopic = sessionTopicInput.value;
+                const customTopic = customTopicInput.value.trim();
+                currentActivityTopic = selectedTopic === 'Andere' ? (customTopic || 'Kein Thema') : (selectedTopic || 'Kein Thema');
+
                 timerInterval = setInterval(updateTimer, 1000);
                 startButton.disabled = true;
                 stopButton.disabled = false;
@@ -562,6 +603,7 @@
             if (storedWorkTimeStartTime) {
                 workTimeStartTime = parseInt(storedWorkTimeStartTime, 10);
                 isWorkTimeRunning = true;
+                currentWorkTypeTopic = workTypeTopic.value;
                 workTimeTimerInterval = setInterval(updateWorkTimeTimer, 1000);
                 workTimeStartButton.disabled = true;
                 workTimeStopButton.disabled = false;
