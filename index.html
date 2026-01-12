@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zeiterfassung</title>
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <meta name="theme-color" content="#000000">
+    <meta name="color-scheme" content="light">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js')
+            .catch(err => console.log('SW Fehler:', err));
+        });
+      }
+    </script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@700&display=swap');
+        html {background-color: #000000 !important;}
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .font-monospace { font-family: 'Roboto Mono', monospace; font-variant-numeric: tabular-nums; }
+    </style>
+</head>
+<body class="bg-[#D47528] min-h-screen p-2 sm:p-4 flex flex-col">
+
+    <div id="app" class="bg-white p-4 sm:p-5 rounded-2xl shadow-xl w-full max-w-2xl mx-auto mb-4">
+        <div class="flex items-center justify-center mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-500 mr-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <h1 class="text-2xl font-bold text-gray-800">Zeiterfassung</h1>
+        </div>
+
+        <div class="flex flex-col md:flex-row md:space-x-4 mb-4">
+            <div class="flex-1 text-center p-3 border border-gray-200 rounded-xl mb-4 md:mb-0 flex flex-col justify-between bg-gray-50/50">
+                <div>
+                    <div id="workTimeStatus" class="text-xs font-semibold text-gray-600 mb-1 h-5 uppercase tracking-wide">Arbeitszeit</div>
+                    <div id="workTimeTimerDisplay" class="text-2xl font-bold text-blue-600 bg-blue-50 py-2 rounded-xl shadow-inner font-monospace">00:00:00</div>
+                    <select id="workTypeTopic" class="w-full px-3 py-1.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mt-3 mb-1">
+                        <option value="Arbeitszeit">Arbeitszeit</option>
+                        <option value="Reisezeit">Reisezeit</option>
+                    </select>
+                </div>
+                <div class="mt-3 flex justify-center space-x-2">
+                    <button id="workTimeStartButton" class="bg-green-500 text-white text-xs font-bold py-2 px-4 rounded-lg shadow hover:bg-green-600 transition w-24">START</button>
+                    <button id="workTimeStopButton" class="bg-red-500 text-white text-xs font-bold py-2 px-4 rounded-lg shadow hover:bg-red-600 transition w-24 disabled:opacity-50" disabled>STOPP</button>
+                </div>
+            </div>
+
+            <div class="flex-1 text-center p-3 border border-gray-200 rounded-xl flex flex-col justify-between bg-gray-50/50">
+                <div>
+                    <div id="activityStatus" class="text-xs font-semibold text-gray-600 mb-1 h-5 uppercase tracking-wide">Tätigkeit</div>
+                    <div id="timerDisplay" class="text-2xl font-bold text-gray-800 bg-white border border-gray-100 py-2 rounded-xl shadow-inner font-monospace">00:00:00</div>
+                    <select id="sessionTopic" class="w-full px-3 py-1.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mt-3 mb-1">
+                        <option value="">Thema auswählen...</option>
+                        <option value="Datenbereinigung">Datenbereinigung</option>
+                        <option value="Massenläufe">Massenläufe</option>
+                        <option value="E-Mail bearbeiten">E-Mail bearbeiten</option>
+                        <option value="Besprechung">Besprechung</option>
+                        <option value="Projektarbeit">Projektarbeit</option>
+                        <option value="Auswertung">Auswertung</option>
+                        <option value="Reporting">Reporting</option>
+                        <option value="Andere">Andere...</option>
+                    </select>
+                    <input type="text" id="customTopicInput" class="w-full px-3 py-1.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm hidden mt-1" placeholder="Thema eingeben...">
+                </div>
+                <div class="mt-3 flex justify-center space-x-2">
+                    <button id="startButton" class="bg-green-500 text-white text-xs font-bold py-2 px-4 rounded-lg shadow hover:bg-green-600 transition w-24">START</button>
+                    <button id="stopButton" class="bg-red-500 text-white text-xs font-bold py-2 px-4 rounded-lg shadow hover:bg-red-600 transition w-24 disabled:opacity-50" disabled>STOPP</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <div id="statusMessage" class="bg-blue-50 text-blue-700 p-2 rounded-lg border border-blue-100 text-xs text-center font-medium">Status: Bereit</div>
+        </div>
+
+        <div class="border-t pt-4">
+            <div class="flex justify-between items-center mb-3 flex-wrap">
+                <div class="text-md font-bold text-gray-700">Meine Sitzungen:</div>
+                <div class="flex space-x-2">
+                    <button id="exportCsvButton" class="bg-gray-200 text-gray-700 text-xs font-bold py-1.5 px-3 rounded-lg hover:bg-gray-300 transition">CSV-Report exportieren</button>
+                    <button id="clearSessionsButton" class="bg-red-100 text-red-600 text-xs font-bold py-1.5 px-3 rounded-lg hover:bg-red-200 transition">Alle löschen</button>
+                </div>
+            </div>
+            <div id="sessionsList" class="max-h-64 overflow-y-scroll border border-gray-100 rounded-xl bg-gray-50"></div>
+        </div>
+        
+        <div class="mt-4 border-t pt-4">
+            <div class="text-md font-bold text-gray-700 mb-2">Tagesübersicht:</div>
+            <div id="summarizedList" class="max-h-64 overflow-y-scroll border border-gray-100 rounded-xl bg-gray-50"></div>
+        </div>
+    </div>
+
+    <div id="confirmationModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-80 shadow-lg rounded-2xl bg-white text-center">
+            <h3 class="text-lg font-bold text-gray-900">Sitzungen löschen?</h3>
+            <p class="text-sm text-gray-500 mt-2">Diese Aktion kann nicht rückgängig gemacht werden.</p>
+            <div class="flex justify-center mt-4 space-x-2">
+                <button id="confirmDeleteButton" class="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-lg w-20">JA</button>
+                <button id="cancelDeleteButton" class="px-4 py-2 bg-gray-200 text-gray-800 text-xs font-bold rounded-lg w-20">NEIN</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-10 mx-auto p-5 border w-full max-w-md shadow-lg rounded-2xl bg-white">
+            <h3 class="text-lg font-bold text-gray-900 mb-4 text-center">Sitzung bearbeiten</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase">Thema:</label>
+                    <select id="editTopic" class="mt-1 block w-full rounded-lg border-gray-300 text-sm">
+                        <option value="">Bitte auswählen</option>
+                        <option value="Datenbereinigung">Datenbereinigung</option>
+                        <option value="Massenläufe">Massenläufe</option>
+                        <option value="E-Mail bearbeiten">E-Mail bearbeiten</option>
+                        <option value="Besprechung">Besprechung</option>
+                        <option value="Projektarbeit">Projektarbeit</option>
+                        <option value="Auswertung">Auswertung</option>
+                        <option value="Reporting">Reporting</option>
+                        <option value="Andere">Andere...</option>
+                    </select>
+                    <input type="text" id="editCustomTopicInput" class="mt-1 block w-full rounded-lg border-gray-300 text-sm hidden" placeholder="Thema eingeben...">
+                    <select id="editWorkTypeTopic" class="mt-1 block w-full rounded-lg border-gray-300 text-sm hidden">
+                        <option value="Arbeitszeit">Arbeitszeit</option>
+                        <option value="Reisezeit">Reisezeit</option>
+                    </select>
+                </div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase">Start:</label><input type="datetime-local" id="editStartTime" class="mt-1 block w-full rounded-lg border-gray-300 text-sm"></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase">Ende:</label><input type="datetime-local" id="editEndTime" class="mt-1 block w-full rounded-lg border-gray-300 text-sm"></div>
+            </div>
+            <div class="flex justify-center mt-6 space-x-2">
+                <button id="saveEditButton" class="px-3 py-2 bg-blue-500 text-white text-xs font-bold rounded-lg flex-1">SPEICHERN</button>
+                <button id="deleteSingleButton" class="px-3 py-2 bg-red-500 text-white text-xs font-bold rounded-lg">LÖSCHEN</button>
+                <button id="cancelEditButton" class="px-3 py-2 bg-gray-200 text-gray-800 text-xs font-bold rounded-lg">ABBRUCH</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const localStorageKey = 'homeOfficeSessions';
+        const localStorageStartTimeKey = 'homeOfficeStartTime';
+        const localStorageWorkTimeStartTimeKey = 'homeOfficeWorkTimeStartTimeKey';
+        const localStorageCurrentWorkTypeKey = 'homeOfficeCurrentWorkType';
+        const localStorageCurrentSessionTopicKey = 'homeOfficeCurrentSessionTopic';
+        const localStorageCurrentCustomTopicKey = 'homeOfficeCurrentCustomTopic';
+        
+        let timerInterval, isRunning = false, startTime = null, currentActivityTopic = null;
+        let workTimeTimerInterval, isWorkTimeRunning = false, workTimeStartTime = null, currentWorkTypeTopic = null;
+
+        const timerDisplay = document.getElementById('timerDisplay'), startButton = document.getElementById('startButton'), stopButton = document.getElementById('stopButton'), sessionTopicInput = document.getElementById('sessionTopic'), customTopicInput = document.getElementById('customTopicInput'), activityStatus = document.getElementById('activityStatus');
+        const workTimeTimerDisplay = document.getElementById('workTimeTimerDisplay'), workTimeStatus = document.getElementById('workTimeStatus'), workTimeStartButton = document.getElementById('workTimeStartButton'), workTimeStopButton = document.getElementById('workTimeStopButton'), workTypeTopic = document.getElementById('workTypeTopic');
+        const statusMessage = document.getElementById('statusMessage'), sessionsList = document.getElementById('sessionsList'), clearSessionsButton = document.getElementById('clearSessionsButton'), exportCsvButton = document.getElementById('exportCsvButton');
+        const confirmationModal = document.getElementById('confirmationModal'), confirmDeleteButton = document.getElementById('confirmDeleteButton'), cancelDeleteButton = document.getElementById('cancelDeleteButton');
+        const editModal = document.getElementById('editModal'), editTopicInput = document.getElementById('editTopic'), editCustomTopicInput = document.getElementById('editCustomTopicInput'), editStartTimeInput = document.getElementById('editStartTime'), editEndTimeInput = document.getElementById('editEndTime'), saveEditButton = document.getElementById('saveEditButton'), cancelEditButton = document.getElementById('cancelEditButton'), deleteSingleButton = document.getElementById('deleteSingleButton');
+        const editWorkTypeTopic = document.getElementById('editWorkTypeTopic');
+        let sessionIndexToEdit = null;
+
+        const showModal = (modalId) => document.getElementById(modalId).classList.remove('hidden');
+        const hideModal = (modalId) => document.getElementById(modalId).classList.add('hidden');
+
+        const formatTime = (ms) => {
+            if (ms < 0) ms = 0;
+            const totalSeconds = Math.floor(ms / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return [hours, minutes, seconds].map(v => v < 10 ? "0" + v : v).join(':');
+        };
+        
+        const updateActivityStatus = () => {
+            if (isRunning) {
+                const selectedTopic = sessionTopicInput.value;
+                const customTopic = customTopicInput.value.trim();
+                let currentTopic = selectedTopic === 'Andere' ? customTopic : selectedTopic;
+                activityStatus.textContent = currentTopic ? `Tätigkeit läuft: ${currentTopic}` : 'Tätigkeit läuft...';
+            } else { activityStatus.textContent = 'Tätigkeit'; }
+        };
+
+        const updateTimer = () => { if (isRunning) timerDisplay.textContent = formatTime(Date.now() - startTime); };
+
+        const startTimer = () => {
+            if (isRunning) return;
+            if (workTypeTopic.value !== 'Arbeitszeit') {
+                if (isWorkTimeRunning) stopWorkTimeTimer();
+                workTypeTopic.value = 'Arbeitszeit';
+                localStorage.setItem(localStorageCurrentWorkTypeKey, 'Arbeitszeit');
+            }
+            if (!isWorkTimeRunning) startWorkTimeTimer();
+            isRunning = true;
+            startTime = Date.now();
+            const selectedTopic = sessionTopicInput.value;
+            const customTopic = customTopicInput.value.trim();
+            currentActivityTopic = selectedTopic === 'Andere' ? (customTopic || 'Kein Thema') : (selectedTopic || 'Kein Thema');
+            localStorage.setItem(localStorageStartTimeKey, startTime);
+            localStorage.setItem(localStorageCurrentSessionTopicKey, selectedTopic);
+            localStorage.setItem(localStorageCurrentCustomTopicKey, customTopic);
+            updateActivityStatus();
+            startButton.disabled = true; stopButton.disabled = false;
+            timerInterval = setInterval(updateTimer, 1000);
+        };
+
+        const stopTimer = (isAutoRestart = false) => {
+            if (!isRunning) return;
+            const endTime = Date.now();
+            const duration = endTime - startTime;
+            const topic = currentActivityTopic;
+            saveSession({ topic, start: new Date(startTime).toISOString(), end: new Date(endTime).toISOString(), duration });
+            isRunning = false;
+            clearInterval(timerInterval);
+            startTime = null;
+            localStorage.removeItem(localStorageStartTimeKey);
+            localStorage.removeItem(localStorageCurrentSessionTopicKey);
+            localStorage.removeItem(localStorageCurrentCustomTopicKey);
+            if (!isAutoRestart) {
+                timerDisplay.textContent = '00:00:00';
+                startButton.disabled = false; stopButton.disabled = true;
+                sessionTopicInput.value = ''; customTopicInput.value = '';
+                customTopicInput.classList.add('hidden'); updateActivityStatus();
+            }
+        };
+
+        const updateWorkTimeStatus = () => {
+            const selectedTopic = workTypeTopic.value;
+            workTimeStatus.textContent = isWorkTimeRunning ? `${selectedTopic} läuft...` : selectedTopic;
+        };
+
+        const updateWorkTimeTimer = () => { if (isWorkTimeRunning) workTimeTimerDisplay.textContent = formatTime(Date.now() - workTimeStartTime); };
+
+        const startWorkTimeTimer = () => {
+            if (isWorkTimeRunning) return;
+            isWorkTimeRunning = true;
+            workTimeStartTime = Date.now();
+            currentWorkTypeTopic = workTypeTopic.value;
+            localStorage.setItem(localStorageWorkTimeStartTimeKey, workTimeStartTime);
+            localStorage.setItem(localStorageCurrentWorkTypeKey, currentWorkTypeTopic);
+            workTimeTimerInterval = setInterval(updateWorkTimeTimer, 1000);
+            workTimeStartButton.disabled = true; workTimeStopButton.disabled = false;
+            updateWorkTimeStatus();
+        };
+
+        const stopWorkTimeTimer = () => {
+            if (!isWorkTimeRunning) return;
+            if (isRunning) stopTimer();
+            const endTime = Date.now();
+            const duration = endTime - workTimeStartTime;
+            const topic = currentWorkTypeTopic;
+            saveSession({ topic, start: new Date(workTimeStartTime).toISOString(), end: new Date(endTime).toISOString(), duration });
+            isWorkTimeRunning = false;
+            clearInterval(workTimeTimerInterval);
+            localStorage.removeItem(localStorageWorkTimeStartTimeKey);
+            localStorage.removeItem(localStorageCurrentWorkTypeKey);
+            workTimeTimerDisplay.textContent = '00:00:00';
+            workTimeStartButton.disabled = false; workTimeStopButton.disabled = true;
+            workTimeStartTime = null; updateWorkTimeStatus();
+        };
+
+        const saveSession = (sessionObject) => {
+            try {
+                const existingSessions = JSON.parse(localStorage.getItem(localStorageKey)) || [];
+                existingSessions.push(sessionObject);
+                localStorage.setItem(localStorageKey, JSON.stringify(existingSessions));
+                statusMessage.textContent = `Sitzung '${sessionObject.topic}' gespeichert.`;
+                renderSessions(); renderSummarizedSessions();
+            } catch (error) { console.error("Fehler beim Speichern:", error); }
+        };
+        
+        const renderSessions = () => {
+            sessionsList.innerHTML = '';
+            const sessions = JSON.parse(localStorage.getItem(localStorageKey)) || [];
+            if (sessions.length === 0) { sessionsList.innerHTML = '<div class="text-center text-gray-500 p-4 text-sm">Keine Sitzungen vorhanden.</div>'; return; }
+            const groupedByDate = {};
+            const options = { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' };
+            sessions.forEach((session, originalIndex) => {
+                const sessionDate = new Date(session.start).toLocaleDateString('de-DE', options);
+                if (!groupedByDate[sessionDate]) groupedByDate[sessionDate] = [];
+                groupedByDate[sessionDate].push({ session, originalIndex });
+            });
+            const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(b.split('.').reverse().join('-')) - new Date(a.split('.').reverse().join('-')));
+            sortedDates.forEach(date => {
+                const dateHeader = document.createElement('div');
+                dateHeader.className = 'text-sm font-bold text-gray-500 sticky top-0 bg-gray-200 px-2 py-1 z-10 uppercase';
+                dateHeader.textContent = `Datum: ${date}`;
+                sessionsList.appendChild(dateHeader);
+                groupedByDate[date].sort((a, b) => new Date(b.session.start) - new Date(a.session.start)).forEach(item => {
+                    const { session, originalIndex } = item;
+                    const el = document.createElement('div');
+                    el.className = 'bg-white p-2 mx-1 my-1 rounded-lg shadow-sm border border-gray-100 flex justify-between items-center';
+                    const tOpts = { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' };
+                    el.innerHTML = `<div class="flex flex-col w-full"><div class="flex items-center justify-between"><span class="font-bold text-gray-800 text-sm">${session.topic}</span><span class="text-sm font-bold text-blue-500">${formatTime(session.duration)}</span></div><div class="text-sm text-gray-400"><span>${new Date(session.start).toLocaleTimeString('de-DE', tOpts)}</span> - <span>${new Date(session.end).toLocaleTimeString('de-DE', tOpts)}</span></div></div><button class="edit-btn text-gray-400 hover:text-blue-500 ml-2" data-index="${originalIndex}"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg></button>`;
+                    sessionsList.appendChild(el);
+                });
+            });
+        };
+        
+        const renderSummarizedSessions = () => {
+            const summarizedList = document.getElementById('summarizedList');
+            const sessions = JSON.parse(localStorage.getItem(localStorageKey)) || [];
+            summarizedList.innerHTML = '';
+            if (sessions.length === 0) { summarizedList.innerHTML = '<div class="text-center text-gray-500 p-4 text-sm">Keine Daten verfügbar.</div>'; return; }
+            const options = { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' };
+            const summarizedData = {};
+            sessions.forEach(session => {
+                const sessionDate = new Date(session.start).toLocaleDateString('de-DE', options);
+                const key = `${sessionDate}_${session.topic}`;
+                if (!summarizedData[key]) summarizedData[key] = { date: sessionDate, topic: session.topic, totalDuration: 0, count: 0, periods: [] };
+                summarizedData[key].totalDuration += session.duration;
+                summarizedData[key].count += 1;
+                if (session.topic === 'Arbeitszeit' || session.topic === 'Reisezeit') summarizedData[key].periods.push({ start: session.start, end: session.end });
+            });
+            const sortedDates = [...new Set(Object.values(summarizedData).map(d => d.date))].sort((a,b) => new Date(b.split('.').reverse().join('-')) - new Date(a.split('.').reverse().join('-')));
+            sortedDates.forEach(date => {
+                const header = document.createElement('div'); header.className = 'text-sm font-bold text-gray-500 sticky top-0 bg-gray-200 px-2 py-1 z-10 uppercase'; header.textContent = `Datum: ${date}`;
+                summarizedList.appendChild(header);
+                Object.values(summarizedData).filter(d => d.date === date).forEach(item => {
+                    const el = document.createElement('div'); el.className = 'bg-white p-2 mx-1 my-1 rounded-lg shadow-sm border border-gray-100';
+                    let html = `<div class="flex justify-between items-center"><span class="font-bold text-gray-800 text-sm">${item.topic}</span><span class="text-sm font-bold text-blue-600">${formatTime(item.totalDuration)}</span></div><div class="text-sm text-gray-400">Sitzungen: ${item.count}</div>`;
+                    el.innerHTML = html; summarizedList.appendChild(el);
+                });
+            });
+        };
+
+        const exportCombinedCsvReport = () => {
+            const sessions = JSON.parse(localStorage.getItem(localStorageKey)) || [];
+            if (sessions.length === 0) { statusMessage.textContent = "Keine Daten vorhanden."; return; }
+            const options = { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric' };
+            const tOptions = { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            
+            let combinedCsv = "\ufeffAlle Sitzungen\n";
+            combinedCsv += "Thema;Start-Datum;Start-Uhrzeit;End-Datum;End-Uhrzeit;Dauer (HH:mm:ss)\n";
+            sessions.forEach(s => { combinedCsv += `${s.topic};${new Date(s.start).toLocaleDateString('de-DE', options)};${new Date(s.start).toLocaleTimeString('de-DE', tOptions)};${new Date(s.end).toLocaleDateString('de-DE', options)};${new Date(s.end).toLocaleTimeString('de-DE', tOptions)};${formatTime(s.duration)}\n`; });
+            
+            combinedCsv += "\n\n\nZusammenfassung nach Tätigkeit (pro Tag)\nDatum;Thema;Summierte Dauer (HH:mm:ss);Anzahl der Sitzungen\n";
+            const sumData = {};
+            sessions.forEach(s => { const d = new Date(s.start).toLocaleDateString('de-DE', options); const k = `${d}_${s.topic}`; if(!sumData[k]) sumData[k]={d, t:s.topic, dur:0, c:0}; sumData[k].dur += s.duration; sumData[k].c++; });
+            Object.keys(sumData).sort((a, b) => new Date(b.split('.').reverse().join('-')) - new Date(a.split('.').reverse().join('-'))).forEach(k => { combinedCsv += `${sumData[k].d};${sumData[k].t};${formatTime(sumData[k].dur)};${sumData[k].c}\n`; });
+            
+            combinedCsv += "\n\n\nArbeitszeit / Reisezeit Zusammenfassung (Gesamt)\nTyp;Gesamtdauer (HH:mm:ss);Anzahl der Sitzungen\n";
+            let tw=0, cw=0, tr=0, cr=0;
+            sessions.forEach(s => { if(s.topic==='Arbeitszeit'){tw+=s.duration; cw++;} else if(s.topic==='Reisezeit'){tr+=s.duration; cr++;} });
+            combinedCsv += `Arbeitszeit;${formatTime(tw)};${cw}\nReisezeit;${formatTime(tr)};${cr}\nSUMME GESAMT;${formatTime(tw+tr)};${cw+cr}\n`;
+            
+            const n = new Date(); const ts = `${n.getFullYear()}-${(n.getMonth()+1).toString().padStart(2,'0')}-${n.getDate().toString().padStart(2,'0')}_${n.getHours().toString().padStart(2,'0')}-${n.getMinutes().toString().padStart(2,'0')}`;
+            const blob = new Blob([combinedCsv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `zeiterfassung_report_${ts}.csv`; link.click();
+            statusMessage.textContent = "CSV-Report exportiert.";
+        };
+
+        const editSession = (index) => {
+            const sessions = JSON.parse(localStorage.getItem(localStorageKey)) || [];
+            const session = sessions[index]; if (!session) return;
+            const toLocal = (d) => new Date(new Date(d).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+            if (['Arbeitszeit', 'Reisezeit'].includes(session.topic)) {
+                editWorkTypeTopic.classList.remove('hidden'); editTopicInput.classList.add('hidden'); editCustomTopicInput.classList.add('hidden');
+                editWorkTypeTopic.value = session.topic;
+            } else {
+                editWorkTypeTopic.classList.add('hidden'); editTopicInput.classList.remove('hidden');
+                const p = ["Datenbereinigung", "Massenläufe", "E-Mail bearbeiten", "Besprechung", "Projektarbeit", "Auswertung", "Reporting"];
+                if (p.includes(session.topic)) { editTopicInput.value = session.topic; editCustomTopicInput.classList.add('hidden'); }
+                else { editTopicInput.value = "Andere"; editCustomTopicInput.value = session.topic; editCustomTopicInput.classList.remove('hidden'); }
+            }
+            editStartTimeInput.value = toLocal(session.start); editEndTimeInput.value = toLocal(session.end);
+            sessionIndexToEdit = index; showModal('editModal');
+        };
+
+        const saveEditedSession = () => {
+            if (sessionIndexToEdit === null) return;
+            const sessions = JSON.parse(localStorage.getItem(localStorageKey)) || [];
+            let topic = !editWorkTypeTopic.classList.contains('hidden') ? editWorkTypeTopic.value : (editTopicInput.value === 'Andere' ? editCustomTopicInput.value.trim() : editTopicInput.value);
+            const start = new Date(editStartTimeInput.value).toISOString(), end = new Date(editEndTimeInput.value).toISOString();
+            const dur = new Date(end).getTime() - new Date(start).getTime();
+            if (dur < 0) return;
+            sessions[sessionIndexToEdit] = { topic: topic || 'Kein Thema', start, end, duration: dur };
+            localStorage.setItem(localStorageKey, JSON.stringify(sessions));
+            hideModal('editModal'); renderSessions(); renderSummarizedSessions();
+        };
+
+        startButton.addEventListener('click', startTimer);
+        stopButton.addEventListener('click', () => stopTimer(false));
+        workTimeStartButton.addEventListener('click', startWorkTimeTimer);
+        workTimeStopButton.addEventListener('click', stopWorkTimeTimer);
+        exportCsvButton.addEventListener('click', exportCombinedCsvReport);
+        clearSessionsButton.addEventListener('click', () => showModal('confirmationModal'));
+        sessionsList.addEventListener('click', (e) => { const b = e.target.closest('.edit-btn'); if (b) editSession(parseInt(b.dataset.index)); });
+        confirmDeleteButton.addEventListener('click', () => { hideModal('confirmationModal'); localStorage.removeItem(localStorageKey); renderSessions(); renderSummarizedSessions(); });
+        cancelDeleteButton.addEventListener('click', () => hideModal('confirmationModal'));
+        saveEditButton.addEventListener('click', saveEditedSession);
+        deleteSingleButton.addEventListener('click', () => { if(sessionIndexToEdit!==null){const s=JSON.parse(localStorage.getItem(localStorageKey)); s.splice(sessionIndexToEdit,1); localStorage.setItem(localStorageKey, JSON.stringify(s)); hideModal('editModal'); renderSessions(); renderSummarizedSessions();} });
+        cancelEditButton.addEventListener('click', () => hideModal('editModal'));
+        sessionTopicInput.addEventListener('change', () => { if(isRunning){stopTimer(true); startTimer();} else localStorage.setItem(localStorageCurrentSessionTopicKey, sessionTopicInput.value); customTopicInput.classList.toggle('hidden', sessionTopicInput.value !== 'Andere'); });
+        workTypeTopic.addEventListener('change', () => { if(isWorkTimeRunning){stopWorkTimeTimer(); startWorkTimeTimer();} else localStorage.setItem(localStorageCurrentWorkTypeKey, workTypeTopic.value); });
+        
+        const initApp = () => {
+            const wt = localStorage.getItem(localStorageCurrentWorkTypeKey); if (wt) workTypeTopic.value = wt;
+            const st = localStorage.getItem(localStorageCurrentSessionTopicKey);
+            if (st) { sessionTopicInput.value = st; if (st === 'Andere') { customTopicInput.classList.remove('hidden'); customTopicInput.value = localStorage.getItem(localStorageCurrentCustomTopicKey) || ''; } }
+            const sStart = localStorage.getItem(localStorageStartTimeKey);
+            if (sStart) { startTime = parseInt(sStart, 10); isRunning = true; timerInterval = setInterval(updateTimer, 1000); startButton.disabled = true; stopButton.disabled = false; updateActivityStatus(); }
+            const wStart = localStorage.getItem(localStorageWorkTimeStartTimeKey);
+            if (wStart) { workTimeStartTime = parseInt(wStart, 10); isWorkTimeRunning = true; workTimeTimerInterval = setInterval(updateWorkTimeTimer, 1000); workTimeStartButton.disabled = true; workTimeStopButton.disabled = false; updateWorkTimeStatus(); }
+            renderSessions(); renderSummarizedSessions();
+        };
+        initApp();
+    </script>
+</body>
+</html>
