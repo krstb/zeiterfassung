@@ -216,6 +216,15 @@
 
         const startTimer = () => {
             if (isRunning) return;
+
+            // KORREKTUR: Sicherstellen, dass "Arbeitszeit" ausgewählt ist
+            if (workTypeTopic.value !== 'Arbeitszeit') {
+                if (isWorkTimeRunning) stopWorkTimeTimer(); // Stoppt Reisezeit, falls sie gerade aktiv ist
+                workTypeTopic.value = 'Arbeitszeit'; // Setzt das Dropdown auf Arbeitszeit
+            }
+
+            if (!isWorkTimeRunning) startWorkTimeTimer();
+
             isRunning = true;
             startTime = Date.now();
             const selectedTopic = sessionTopicInput.value;
@@ -276,6 +285,10 @@
 
         const stopWorkTimeTimer = () => {
             if (!isWorkTimeRunning) return;
+            
+            // Laufende Tätigkeit stoppen, wenn die Arbeitszeit gewechselt/gestoppt wird
+            if (isRunning) stopTimer();
+
             const endTime = Date.now();
             const duration = endTime - workTimeStartTime;
             const topic = currentWorkTypeTopic;
